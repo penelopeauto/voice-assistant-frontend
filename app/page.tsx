@@ -10,8 +10,6 @@ import {
   RoomContext,
   VideoTrack,
   VoiceAssistantControlBar,
-  VoiceAssistantProvider,
-  useRoomContext,
   useVoiceAssistant,
 } from "@livekit/components-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -165,22 +163,20 @@ export default function Page() {
   return (
     <main data-lk-theme="default" className="h-full grid content-center bg-[var(--lk-bg)]">
       <RoomContext.Provider value={room}>
-        <VoiceAssistantProvider options={{ preferredOutputDevice: 'browser' }}>
-          <div className="lk-room-container max-w-[1024px] w-[90vw] mx-auto max-h-[90vh]">
-            <VoiceAssistantApp 
-              onConnectButtonClicked={onConnectButtonClicked} 
-              isConnecting={isConnecting}
-              error={error}
-              connectionState={connectionState}
-            />
-          </div>
-        </VoiceAssistantProvider>
+        <div className="lk-room-container max-w-[1024px] w-[90vw] mx-auto max-h-[90vh]">
+          <SimpleVoiceAssistant 
+            onConnectButtonClicked={onConnectButtonClicked} 
+            isConnecting={isConnecting}
+            error={error}
+            connectionState={connectionState}
+          />
+        </div>
       </RoomContext.Provider>
     </main>
   );
 }
 
-function VoiceAssistantApp(props: { 
+function SimpleVoiceAssistant(props: { 
   onConnectButtonClicked: () => void; 
   isConnecting: boolean;
   error: string;
@@ -188,13 +184,11 @@ function VoiceAssistantApp(props: {
 }) {
   const { state: agentState } = useVoiceAssistant();
   const { isConnecting, error, connectionState } = props;
-  const room = useRoomContext();
   
   useEffect(() => {
-    // This useEffect specifically monitors the agent and room states
+    // This useEffect specifically monitors the agent state
     console.log("Agent state:", agentState);
-    console.log("Room state:", room.state);
-  }, [agentState, room.state]);
+  }, [agentState]);
 
   return (
     <>
