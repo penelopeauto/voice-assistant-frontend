@@ -1,24 +1,4 @@
-You've got a TypeScript error in the code I provided. Let me fix that by correctly typing the error object:
-javascript// In your onConnectButtonClicked function, change the catch block to:
-try {
-  // ...existing code...
-} catch (error: unknown) {
-  console.error("Failed to connect:", error);
-  
-  // Type-safe error handling
-  let errorMessage = "Failed to connect to room";
-  if (error instanceof Error) {
-    errorMessage = error.message;
-  } else if (typeof error === 'string') {
-    errorMessage = error;
-  }
-  
-  setError(errorMessage);
-} finally {
-  setIsConnecting(false);
-}
-Here's the full corrected code:
-javascript"use client";
+"use client";
 
 import { CloseIcon } from "@/components/CloseIcon";
 import { NoAgentNotification } from "@/components/NoAgentNotification";
