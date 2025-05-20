@@ -10,6 +10,8 @@ import {
   RoomContext,
   VideoTrack,
   VoiceAssistantControlBar,
+  VoiceAssistantProvider,
+  useRoomContext,
   useVoiceAssistant,
 } from "@livekit/components-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -18,14 +20,12 @@ import { useCallback, useEffect, useState } from "react";
 
 export default function Page() {
   const [room] = useState(new Room({
-    // Adding specific LiveKit configuration to improve connection stability
     adaptiveStream: true,
     dynacast: true,
-    // Increase connection timeout
     stopLocalTrackOnUnpublish: true,
     reconnectPolicy: {
-      maxRetries: 10, // Increase retry attempts
-      timeoutBackoff: 2, // Exponential backoff
+      maxRetries: 10,
+      timeoutBackoff: 2,
     }
   }));
   const [isConnecting, setIsConnecting] = useState(false);
@@ -86,19 +86,13 @@ export default function Page() {
         await room.disconnect();
       }
       
-      // Use a timeout to ensure connect doesn't hang indefinitely
-      const connectPromise = room.connect(livekitUrl, token);
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Connection timed out after 15 seconds")), 15000);
-      });
+      // Connect to the LiveKit room
+      await room.connect(livekitUrl, token);
+      console.log("Successfully connected to room:", roomName);
       
-      await Promise.race([connectPromise, timeoutPromise]);
+      // Enable the microphone for the voice assistant
+      await room.localParticipant.setMicrophoneEnabled(true);
       
-      // Only enable microphone if connection was successful
-      if (room.state === "connected") {
-        console.log("Successfully connected to room:", roomName);
-        await room.localParticipant.setMicrophoneEnabled(true);
-      }
     } catch (error: unknown) {
       console.error("Failed to connect:", error);
       
@@ -111,7 +105,6 @@ export default function Page() {
       }
       
       setError(errorMessage);
-      setIsConnecting(false);
       
       // Try to clean up if connection fails
       if (room.state !== "disconnected") {
@@ -121,6 +114,8 @@ export default function Page() {
           console.error("Error during disconnect:", disconnectError);
         }
       }
+    } finally {
+      setIsConnecting(false);
     }
   }, [room]);
 
@@ -153,8 +148,6 @@ export default function Page() {
       console.log("Reconnected to room");
       setIsConnecting(false);
     });
-    room.on(RoomEvent.RoomMetadataChanged, (metadata) => console.log("Room metadata:", metadata));
-    room.on(RoomEvent.ConnectionQualityChanged, (quality) => console.log("Connection quality:", quality));
     room.on(RoomEvent.Error, handleError);
     
     // Clean up the room when component unmounts
@@ -164,8 +157,6 @@ export default function Page() {
       room.off(RoomEvent.SignalConnected);
       room.off(RoomEvent.Reconnecting);
       room.off(RoomEvent.Reconnected);
-      room.off(RoomEvent.RoomMetadataChanged);
-      room.off(RoomEvent.ConnectionQualityChanged);
       room.off(RoomEvent.Error, handleError);
       disconnectFromRoom();
     };
@@ -174,20 +165,22 @@ export default function Page() {
   return (
     <main data-lk-theme="default" className="h-full grid content-center bg-[var(--lk-bg)]">
       <RoomContext.Provider value={room}>
-        <div className="lk-room-container max-w-[1024px] w-[90vw] mx-auto max-h-[90vh]">
-          <SimpleVoiceAssistant 
-            onConnectButtonClicked={onConnectButtonClicked} 
-            isConnecting={isConnecting}
-            error={error}
-            connectionState={connectionState}
-          />
-        </div>
+        <VoiceAssistantProvider options={{ preferredOutputDevice: 'browser' }}>
+          <div className="lk-room-container max-w-[1024px] w-[90vw] mx-auto max-h-[90vh]">
+            <VoiceAssistantApp 
+              onConnectButtonClicked={onConnectButtonClicked} 
+              isConnecting={isConnecting}
+              error={error}
+              connectionState={connectionState}
+            />
+          </div>
+        </VoiceAssistantProvider>
       </RoomContext.Provider>
     </main>
   );
 }
 
-function SimpleVoiceAssistant(props: { 
+function VoiceAssistantApp(props: { 
   onConnectButtonClicked: () => void; 
   isConnecting: boolean;
   error: string;
@@ -195,6 +188,13 @@ function SimpleVoiceAssistant(props: {
 }) {
   const { state: agentState } = useVoiceAssistant();
   const { isConnecting, error, connectionState } = props;
+  const room = useRoomContext();
+  
+  useEffect(() => {
+    // This useEffect specifically monitors the agent and room states
+    console.log("Agent state:", agentState);
+    console.log("Room state:", room.state);
+  }, [agentState, room.state]);
 
   return (
     <>
