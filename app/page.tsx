@@ -1,4 +1,5 @@
-"use client";
+Let's go back to a version that's closest to your original working code, but with the essential fixes to make the connection work. Here's a simplified version that should build successfully:
+javascript"use client";
 
 import { CloseIcon } from "@/components/CloseIcon";
 import { NoAgentNotification } from "@/components/NoAgentNotification";
@@ -13,47 +14,13 @@ import {
   useVoiceAssistant,
 } from "@livekit/components-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ConnectionState, Room, RoomEvent } from "livekit-client";
+import { Room, RoomEvent } from "livekit-client";
 import { useCallback, useEffect, useState } from "react";
 
 export default function Page() {
-  const [room] = useState(new Room({
-    adaptiveStream: true,
-    dynacast: true,
-    stopLocalTrackOnUnpublish: true,
-    reconnectPolicy: {
-      maxRetries: 10,
-      timeoutBackoff: 2,
-    }
-  }));
+  const [room] = useState(new Room());
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState("");
-  const [connectionState, setConnectionState] = useState<ConnectionState>(
-    room.state
-  );
-
-  // Track room connection state
-  useEffect(() => {
-    const handleConnectionStateChanged = (state: ConnectionState) => {
-      console.log("Connection state changed:", state);
-      setConnectionState(state);
-      
-      if (state === "disconnected") {
-        setIsConnecting(false);
-      } else if (state === "connecting") {
-        setIsConnecting(true);
-      } else if (state === "connected") {
-        setIsConnecting(false);
-        setError("");
-      }
-    };
-
-    room.on(RoomEvent.ConnectionStateChanged, handleConnectionStateChanged);
-    
-    return () => {
-      room.off(RoomEvent.ConnectionStateChanged, handleConnectionStateChanged);
-    };
-  }, [room]);
 
   const onConnectButtonClicked = useCallback(async () => {
     setIsConnecting(true);
@@ -73,24 +40,15 @@ export default function Page() {
       const { token } = await tokenRes.json();
 
       const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
-      if (!livekitUrl) {
-        throw new Error("Missing NEXT_PUBLIC_LIVEKIT_URL. Please check your environment variables.");
-      }
+      if (!livekitUrl) throw new Error("Missing NEXT_PUBLIC_LIVEKIT_URL");
 
-      console.log(`Connecting to LiveKit server at: ${livekitUrl}`);
-      
-      // Important: Disconnect from any previous session first
+      // Disconnect if already connected
       if (room.state !== "disconnected") {
         await room.disconnect();
       }
-      
-      // Connect to the LiveKit room
+
       await room.connect(livekitUrl, token);
-      console.log("Successfully connected to room:", roomName);
-      
-      // Enable the microphone for the voice assistant
       await room.localParticipant.setMicrophoneEnabled(true);
-      
     } catch (error: unknown) {
       console.error("Failed to connect:", error);
       
@@ -103,62 +61,22 @@ export default function Page() {
       }
       
       setError(errorMessage);
-      
-      // Try to clean up if connection fails
-      if (room.state !== "disconnected") {
-        try {
-          await room.disconnect();
-        } catch (disconnectError) {
-          console.error("Error during disconnect:", disconnectError);
-        }
-      }
     } finally {
       setIsConnecting(false);
     }
   }, [room]);
 
-  const disconnectFromRoom = useCallback(() => {
-    if (room.state !== "disconnected") {
-      room.disconnect();
-    }
-  }, [room]);
-
   useEffect(() => {
-    // Setup event listeners
-    const handleError = (error: Error) => {
-      console.error("Room error:", error);
-      setError(`LiveKit error: ${error.message}`);
-    };
-    
-    const handleDisconnected = () => {
-      console.log("Room disconnected");
-      setIsConnecting(false);
-    };
-    
     room.on(RoomEvent.MediaDevicesError, onDeviceFailure);
-    room.on(RoomEvent.Disconnected, handleDisconnected);
-    room.on(RoomEvent.SignalConnected, () => console.log("Signal connected"));
-    room.on(RoomEvent.Reconnecting, () => {
-      console.log("Reconnecting to room");
-      setIsConnecting(true);
-    });
-    room.on(RoomEvent.Reconnected, () => {
-      console.log("Reconnected to room");
-      setIsConnecting(false);
-    });
-    room.on(RoomEvent.Error, handleError);
     
-    // Clean up the room when component unmounts
+    // Clean up when component unmounts
     return () => {
       room.off(RoomEvent.MediaDevicesError, onDeviceFailure);
-      room.off(RoomEvent.Disconnected, handleDisconnected);
-      room.off(RoomEvent.SignalConnected);
-      room.off(RoomEvent.Reconnecting);
-      room.off(RoomEvent.Reconnected);
-      room.off(RoomEvent.Error, handleError);
-      disconnectFromRoom();
+      if (room.state !== "disconnected") {
+        room.disconnect();
+      }
     };
-  }, [room, disconnectFromRoom]);
+  }, [room]);
 
   return (
     <main data-lk-theme="default" className="h-full grid content-center bg-[var(--lk-bg)]">
@@ -168,7 +86,6 @@ export default function Page() {
             onConnectButtonClicked={onConnectButtonClicked} 
             isConnecting={isConnecting}
             error={error}
-            connectionState={connectionState}
           />
         </div>
       </RoomContext.Provider>
@@ -180,15 +97,9 @@ function SimpleVoiceAssistant(props: {
   onConnectButtonClicked: () => void; 
   isConnecting: boolean;
   error: string;
-  connectionState: ConnectionState;
 }) {
   const { state: agentState } = useVoiceAssistant();
-  const { isConnecting, error, connectionState } = props;
-  
-  useEffect(() => {
-    // This useEffect specifically monitors the agent state
-    console.log("Agent state:", agentState);
-  }, [agentState]);
+  const { isConnecting, error } = props;
 
   return (
     <>
@@ -213,12 +124,6 @@ function SimpleVoiceAssistant(props: {
               >
                 {isConnecting ? "Connecting..." : "Start a conversation"}
               </motion.button>
-              
-              {connectionState === "reconnecting" && (
-                <div className="text-yellow-500 text-sm mt-2">
-                  Reconnecting to LiveKit server...
-                </div>
-              )}
               
               {error && (
                 <motion.div
