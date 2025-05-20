@@ -1,5 +1,4 @@
-Let's go back to a version that's closest to your original working code, but with the essential fixes to make the connection work. Here's a simplified version that should build successfully:
-javascript"use client";
+"use client";
 
 import { CloseIcon } from "@/components/CloseIcon";
 import { NoAgentNotification } from "@/components/NoAgentNotification";
