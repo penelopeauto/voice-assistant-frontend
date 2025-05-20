@@ -15,35 +15,31 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { Room, RoomEvent } from "livekit-client";
 import { useCallback, useEffect, useState } from "react";
-import type { ConnectionDetails } from "./api/connection-details/route";
 
 export default function Page() {
   const [room] = useState(new Room());
 
   const onConnectButtonClicked = useCallback(async () => {
-    // Generate room connection details, including:
-    //   - A random Room name
-    //   - A random Participant name
-    //   - An Access Token to permit the participant to join the room
-    //   - The URL of the LiveKit server to connect to
-    //
-    // In real-world application, you would likely allow the user to specify their
-    // own participant name, and possibly to choose from existing rooms to join.
+    const identity = prompt("Enter your name (identity):", "dennis") || "guest";
+    const roomName = prompt("Enter room name:", "default") || "default";
 
-    const url = new URL(
-      process.env.NEXT_PUBLIC_CONN_DETAILS_ENDPOINT ?? "/api/connection-details",
-      window.location.origin
-    );
-    const response = await fetch(url.toString());
-    const connectionDetailsData: ConnectionDetails = await response.json();
+    try {
+      const tokenRes = await fetch(`/api/token?identity=${identity}&room=${roomName}`);
+      const { token } = await tokenRes.json();
 
-    await room.connect(connectionDetailsData.serverUrl, connectionDetailsData.participantToken);
-    await room.localParticipant.setMicrophoneEnabled(true);
+      const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
+      if (!livekitUrl) throw new Error("Missing NEXT_PUBLIC_LIVEKIT_URL");
+
+      await room.connect(livekitUrl, token);
+      await room.localParticipant.setMicrophoneEnabled(true);
+    } catch (err) {
+      console.error("Failed to connect:", err);
+      alert("Failed to connect to room. Check console for details.");
+    }
   }, [room]);
 
   useEffect(() => {
     room.on(RoomEvent.MediaDevicesError, onDeviceFailure);
-
     return () => {
       room.off(RoomEvent.MediaDevicesError, onDeviceFailure);
     };
@@ -80,7 +76,7 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void }) {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3, delay: 0.1 }}
               className="uppercase px-4 py-2 bg-white text-black rounded-md"
-              onClick={() => props.onConnectButtonClicked()}
+              onClick={props.onConnectButtonClicked}
             >
               Start a conversation
             </motion.button>
@@ -120,6 +116,7 @@ function AgentVisualizer() {
       </div>
     );
   }
+
   return (
     <div className="h-[300px] w-full">
       <BarVisualizer
@@ -146,7 +143,7 @@ function ControlBar(props: { onConnectButtonClicked: () => void }) {
             exit={{ opacity: 0, top: "-10px" }}
             transition={{ duration: 1, ease: [0.09, 1.04, 0.245, 1.055] }}
             className="uppercase absolute left-1/2 -translate-x-1/2 px-4 py-2 bg-white text-black rounded-md"
-            onClick={() => props.onConnectButtonClicked()}
+            onClick={props.onConnectButtonClicked}
           >
             Start a conversation
           </motion.button>
